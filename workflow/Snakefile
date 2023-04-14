@@ -1,0 +1,43 @@
+import pandas as pd
+from subprocess import run
+import re
+
+sequences = run( "fgrep '>' input/formatted_alignment.fasta", capture_output=True, shell=True, text=True )
+SAMPLES = pd.DataFrame( [seq.replace( ">", "" ).split( "|" ) for seq in sequences.stdout.split( "\n" )], columns=["strain", "country", "location", "collection_date", "latitude", "longitude"] )
+SAMPLES = SAMPLES.loc[SAMPLES["strain"].str.startswith( "W" )]
+SAMPLES["num"] = SAMPLES["strain"].str.removeprefix( "W" ).astype( int )
+
+cloud_avail = run( "gsutil ls gs://andersen-lab_project_westnile-genomics/bam_files/", capture_output=True, text=True, shell=True )
+cloud = {"strain" : [], "loc" : []}
+wn4k_re = re.compile( "W(\d+)" )
+for seq in cloud_avail.stdout.split( "\n" ):
+    search = wn4k_re.search( seq )
+    if search:
+        cloud["strain"].append( search.group(0) )
+        cloud["loc"].append( seq )
+cloud = pd.DataFrame( cloud )
+cloud["num"] = cloud["strain"].str.removeprefix( "W" ).astype( int )
+assert len( cloud.loc[cloud["num"].duplicated( keep=False )] ) == 0, "Some sequences have duplicate WN4k numbers"
+
+SAMPLES = SAMPLES.merge( cloud, on="num", how="left", validate="one_to_one" )
+SAMPLES = SAMPLES.loc[~SAMPLES["loc"].isna()]
+CLOUD_FILES = SAMPLES.set_index("strain_x")["loc"].to_dict()
+
+rule all:
+    input:
+        #"analyses/plots/figureX_transmission-lineage-count.pdf",
+        #"analyses/plots/figureX_transmission-lineage-size.pdf",
+        #"analyses/plots/figureX_transmission-lineage-length.pdf",
+        #"analyses/plots/figureX_transmission-lineage-count-post2002.pdf",
+        #"analyses/plots/figureX_transmission-lineage-size-post2002.pdf",
+        #"analyses/plots/figureX_transmission-lineage-length-post2002.pdf",
+        #"analyses/plots/figureX_mcc-tree.pdf",
+        #"analyses/plots/figureX_mcc-tree-legend.pdf",
+        #"analyses/plots/figureX_transition-rate-map.pdf"
+        "output/2023-04-12_wnv_skygrid_yearly_relaxed.xml"
+
+include: "rules/preprocessing.smk"
+include: "rules/filtering.smk"
+include: "rules/prepare_beast.smk"
+include: "rules/beast_analysis.smk"
+#include: "rules/selection_analysis.smk"

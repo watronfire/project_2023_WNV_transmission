@@ -1,0 +1,191 @@
+import matplotlib.dates as mdates
+import matplotlib as mpl
+from datetime import datetime as dt
+from datetime import timedelta
+import time
+
+COLOR = '#343434'
+
+def get_black():
+    return COLOR
+
+def get_okabe_ito_palette():
+    return ["#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7"]
+
+def setup_plotting_standards():
+    prop = mpl.font_manager.FontProperties('Roboto')
+    mpl.rcParams['font.sans-serif'] = prop.get_name()
+    mpl.rcParams['font.family'] = 'sans-serif'
+    mpl.rcParams['font.weight']=300
+    mpl.rcParams['axes.labelweight']=300
+    mpl.rcParams['font.size']=16
+
+    mpl.rcParams['figure.dpi'] = 200
+
+    mpl.rcParams['text.color'] = COLOR
+    mpl.rcParams['axes.labelcolor'] = COLOR
+    mpl.rcParams['xtick.color'] = COLOR
+    mpl.rcParams['ytick.color'] = COLOR
+
+def timeseries_formatting( ax ):
+    """
+    Specifies the proper date formatting of the xaxis.
+    """
+    # Properly label timeseries
+    ax.xaxis.set_minor_locator( mdates.MonthLocator() )
+    ax.xaxis.set_minor_formatter( mdates.DateFormatter( '%b' ) )
+    ax.xaxis.set_major_locator( mdates.YearLocator() )
+    ax.xaxis.set_major_formatter( mdates.DateFormatter( '%Y %b' ) )
+
+def skipped_timeseries_formatting( ax ):
+    ax.xaxis.set_major_locator( mdates.MonthLocator() )
+    formatter = mdates.DateFormatter( '%b' )
+    long_formatter = mdates.DateFormatter( '%Y %b' )
+    accepted_months = ["Jan", "Mar", "May", "Jul", "Sep", "Nov"]
+    labels = []
+    for date in ax.get_xticks():
+        formatted_date = formatter.format_data( date )
+        if formatted_date in accepted_months:
+            if formatted_date == "Jan":
+                labels.append( long_formatter.format_data(date) )
+            else:
+                labels.append( formatted_date )
+        else:
+            labels.append( "" )
+    ax.set_xticklabels( labels )
+        
+def basic_formatting( ax, spines=["bottom"], which="y", title=None, ylabel=None, xlabel=None, xsize=12, ysize=12, xlims=None, ylims=None ):
+    """
+    Specifies the basic formatting of all plots.
+    """
+    # Remove spines
+    [ax.spines[j].set_visible( False ) for j in ax.spines if j not in spines]
+
+    # Format axes ticks
+    ax.tick_params( axis="x", bottom=False, which="both", labelbottom=True, labelsize=xsize, pad=0 )
+    ax.tick_params( axis="y", left=False, which="both", labelleft=True, labelsize=ysize, pad=0 )
+
+    # Label axes
+    ax.set_xlabel( xlabel, fontsize=xsize )
+    ax.set_ylabel( ylabel, fontsize=ysize )
+    ax.set_title( title )
+
+    ax.set_facecolor( "w" )
+
+    # Add a simple grid
+    ax.grid( which="both", axis=which, linewidth=1, color="#F1F1F1", zorder=1 )
+
+    # Add the xlims
+    if xlims:
+        ax.set_xlim( xlims )
+    if ylims:
+        ax.set_ylim( ylims )
+
+def _toYearFraction( date, date_format="%Y-%m-%d" ):
+    """ Converts datetime object to a decimal year
+    Parameters
+    ----------
+    date: datetime.datetime
+        date to be converted.
+
+    Returns
+    -------
+    float
+        date in decimal year format.
+    """
+    def sinceEpoch( d ): # returns seconds since epoch
+        return time.mktime( d.timetuple() )
+
+    date = dt.strptime( date, date_format )
+    
+    year = date.year
+    start_of_this_year = dt( year=year, month=1, day=1 )
+    start_of_next_year = dt( year=year+1, month=1, day=1 )
+
+    year_elapsed = sinceEpoch( date ) - sinceEpoch( start_of_this_year )
+    year_duration = sinceEpoch( start_of_next_year ) - sinceEpoch( start_of_this_year )
+    fraction = year_elapsed / year_duration
+
+    return date.year + fraction
+        
+def dec_to_date( date_str ):
+    """
+    Converts a decimal date into a datetime object. 
+    Useful for interacting with output from BEAST.
+    """
+    if date_str is None:
+        return None
+    year = int( date_str )
+    rem = date_str - year
+    base = dt( year, 1, 1 )
+    result = base + timedelta( seconds=(base.replace( year=base.year + 1 ) - base).total_seconds() * rem )
+    return result
+
+def hpd(data, level):
+    """
+    Return highest posterior density interval from a list,
+    given the percent posterior density interval required.
+    """
+    d = list(data)
+    d.sort()
+
+    nData = len(data)
+    nIn = int(round(level * nData))
+    if nIn < 2 :
+        return None
+    #raise RuntimeError("Not enough data. N data: %s"%(len(data)))
+ 
+    i = 0
+    try:
+        r = d[i+nIn-1] - d[i]
+    except IndexError:
+        print( i )
+        print( nIn )
+        print( d )
+        raise
+
+    for k in range(len(d) - (nIn - 1)) :
+        rk = d[k+nIn-1] - d[k]
+        if rk < r :
+            r = rk
+            i = k
+
+    assert 0 <= i <= i+nIn-1 < len(d)
+ 
+    return (d[i], d[i+nIn-1])
+
+def get_census_regions():
+    return  {
+        "NorthEast": ["Connecticut", "Massachusetts", "RhodeIsland", "NewJersey", "NewYork", "Pennsylvania",
+                      "NewHampshire", "Vermont", "Maine" ],
+        "South": ["DistrictofColumbia", "Delaware", "Florida", "Louisiana", "Georgia", "Maryland", "NorthCarolina",
+                  "SouthCarolina", "Virginia", "Alabama", "Kentucky", "WestVirginia", "Mississippi", "Tennessee",
+                  "Arkansas", "Oklahoma", "Texas", "VirginIslands"],
+        "Midwest": ["Illinois", "Michigan", "Ohio", "Wisconsin", "Iowa", "Kansas", "Minnesota", "Missouri","Nebraska",
+                    "Indiana", "NorthDakota", "SouthDakota"],
+        "West": ["Arizona", "Idaho", "Colorado", "Montana", "Nevada", "NewMexico", "California", "Oregon","Washington",
+                 "Utah", "Wyoming"]
+    }
+
+def plot_horizontal_ballline_plot( ax, df, cmap, xlims, xlabel, sortby=["50%"] ):
+    index_name = df.index.name
+    if index_name is None:
+        index_name = "index"
+
+    plot_df = df.loc[df.index != "Other"].copy()
+    plot_df = plot_df.sort_values( sortby ).reset_index()
+    for reg, states in get_census_regions().items():
+        plot_df.loc[plot_df["Location"].isin( states ), "region"] = reg
+    plot_df.loc[plot_df["region"].isna(), "region"] = plot_df.loc[plot_df["region"].isna(), index_name]
+
+    for reg, df in plot_df.groupby( "region" ):
+        ax.scatter( df["50%"], df.index, color=cmap[reg], s=70, zorder=10, edgecolor="black", linewidth=1 )
+        ln = ax.hlines( df.index, df["2.5%"], df["97.5%"], zorder=5, color=cmap[reg], linewidth=3, alpha=0.5 )
+        ln.set_capstyle( "round" )
+    ax.set_yticks( plot_df.index )
+    ax.set_yticklabels( plot_df[index_name] )
+
+    for i in range( 1, max( plot_df.index ) + 1, 2 ):
+        ax.axhspan( i - 0.5, i + 0.5, color="black", alpha=0.04, edgecolor=None, linewidth=0 )
+
+    basic_formatting( ax, spines=["left", "bottom"], which="x", xlabel=xlabel, xsize=10, ysize=10, xlims=xlims, ylims=( -0.5, plot_df.index.max() + 0.5 ))

@@ -1,0 +1,17 @@
+{
+  "__default__" :
+  {
+    "walltime" : "24:00:00",
+    "mem" : "8gb",
+    "queue" : "shared",
+    "logfile" : "/gpfs/home/natem/logs/cambria.txt",
+    "n" : 1,
+    "stdout" : "oe"
+  },
+  "hyphy_wrapper" :
+  {
+    "mem" : "16gb",
+    "n" : 8,
+    "walltime" : "120:00:00"
+  }
+}
